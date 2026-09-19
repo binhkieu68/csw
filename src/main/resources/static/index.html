@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>FPT - Quản lý nhân viên</title>
+<style>
+  :root {
+    --orange: #f6511d;
+    --dark: #1c1c1e;
+    --gray: #6b7280;
+    --border: #e5e7eb;
+    --bg: #f7f7f8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    background: var(--bg);
+    margin: 0;
+    padding: 32px 16px;
+    color: var(--dark);
+  }
+  .container { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.subtitle { color: var(--gray); margin-top: 0; margin-bottom: 24px; font-size: 14px; }
+  .card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .card h2 { font-size: 16px; margin-top: 0; margin-bottom: 16px; }
+  form { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 12px; color: var(--gray); }
+  input {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 14px;
+    width: 160px;
+  }
+  button {
+    background: var(--orange);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 9px 16px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  button:hover { opacity: 0.9; }
+  button.secondary { background: var(--dark); }
+  table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); font-size: 14px; }
+  th { color: var(--gray); font-weight: 600; font-size: 12px; text-transform: uppercase; }
+  tr:hover { background: #fafafa; }
+  .edit-btn { background: none; color: var(--orange); border: 1px solid var(--orange); padding: 5px 10px; }
+  #status { font-size: 13px; margin-top: 8px; min-height: 18px; }
+  .ok { color: #16a34a; }
+  .err { color: #dc2626; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>FPT Employee Management</h1>
+  <p class="subtitle">Trang web test cho web service quản lý nhân viên (getEmployees / addEmployee / updateEmployee)</p>
+
+  <div class="card">
+    <h2 id="form-title">Thêm nhân viên mới</h2>
+    <form id="employee-form">
+      <input type="hidden" id="emp-id">
+      <div class="field">
+        <label>Họ tên</label>
+        <input type="text" id="emp-name" required>
+      </div>
+      <div class="field">
+        <label>Lương (VND)</label>
+        <input type="number" id="emp-salary" step="1" min="0" required>
+      </div>
+      <button type="submit" id="submit-btn">Thêm</button>
+      <button type="button" class="secondary" id="cancel-btn" style="display:none;">Hủy</button>
+    </form>
+    <div id="status"></div>
+  </div>
+
+  <div class="card">
+    <h2>Danh sách nhân viên</h2>
+    <table>
+      <thead>
+        <tr><th>ID</th><th>Họ tên</th><th>Lương</th><th></th></tr>
+      </thead>
+      <tbody id="employee-table-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const API_URL = '/api/employees';
+
+const form = document.getElementById('employee-form');
+const idField = document.getElementById('emp-id');
+const nameField = document.getElementById('emp-name');
+const salaryField = document.getElementById('emp-salary');
+const submitBtn = document.getElementById('submit-btn');
+const cancelBtn = document.getElementById('cancel-btn');
+const formTitle = document.getElementById('form-title');
+const statusEl = document.getElementById('status');
+const tbody = document.getElementById('employee-table-body');
+
+function showStatus(message, isError) {
+  statusEl.textContent = message;
+  statusEl.className = isError ? 'err' : 'ok';
+}
+
+function formatSalary(value) {
+  return Number(value).toLocaleString('vi-VN');
+}
+
+// Calls getEmployees() -> GET /api/employees
+async function loadEmployees() {
+  try {
+    const res = await fetch(API_URL);
+    if (!res.ok) throw new Error('Không tải được danh sách nhân viên');
+    const employees = await res.json();
+    renderTable(employees);
+  } catch (err) {
+    showStatus(err.message, true);
+  }
+}
+
+function renderTable(employees) {
+  tbody.innerHTML = '';
+  employees.forEach(emp => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${emp.id}</td>
+      <td>${emp.name}</td>
+      <td>${formatSalary(emp.salary)}</td>
+      <td><button class="edit-btn" onclick='startEdit(${JSON.stringify(emp)})'>Sửa</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function startEdit(emp) {
+  idField.value = emp.id;
+  nameField.value = emp.name;
+  salaryField.value = emp.salary;
+  formTitle.textContent = 'Sửa nhân viên #' + emp.id;
+  submitBtn.textContent = 'Cập nhật';
+  cancelBtn.style.display = 'inline-block';
+}
+
+function resetForm() {
+  form.reset();
+  idField.value = '';
+  formTitle.textContent = 'Thêm nhân viên mới';
+  submitBtn.textContent = 'Thêm';
+  cancelBtn.style.display = 'none';
+}
+
+cancelBtn.addEventListener('click', resetForm);
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const payload = {
+    name: nameField.value.trim(),
+    salary: Number(salaryField.value)
+  };
+  const isEdit = !!idField.value;
+
+  try {
+    let res;
+    if (isEdit) {
+      // Calls updateEmployee(Employee e) -> PUT /api/employees/{id}
+      res = await fetch(`${API_URL}/${idField.value}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    } else {
+      // Calls addEmployee(Employee e) -> POST /api/employees
+      res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    }
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(errText || 'Thao tác thất bại');
+    }
+
+    showStatus(isEdit ? 'Cập nhật thành công!' : 'Thêm nhân viên thành công!', false);
+    resetForm();
+    loadEmployees();
+  } catch (err) {
+    showStatus(err.message, true);
+  }
+});
+
+loadEmployees();
+</script>
+</body>
+</html>
